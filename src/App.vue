@@ -1,7 +1,37 @@
 <template>
   <div>
+    <!-- Auth Block -->
+    <div>
+      <div v-if="!beverageStore.user">
+        <button @click="withGoogle">Sign in with Google</button>
+      </div>
+
+      <div v-else>
+        <p>Signed in as {{ beverageStore.user.email }}</p>
+        <button @click="logout">Sign out</button>
+      </div>
+
+      <p>{{ message }}</p>
+
+      <div v-if="beverageStore.user && beverageStore.beverages.length">
+        <h3>Your Saved Beverages</h3>
+        <div v-for="b in beverageStore.beverages" :key="b.id">
+          <input 
+            type="radio" 
+            name="bev" 
+            :value="b" 
+            v-model="beverageStore.currentBeverage"
+            @change="beverageStore.showBeverage()"
+          />
+          {{ b.name }}
+        </div>
+      </div>
+    </div>
+
+    <!-- Beverage Preview -->
     <Beverage :isIced="beverageStore.currentTemp === 'Cold'" />
 
+    <!-- Temperature -->
     <ul>
       <li>
         <template v-for="temp in beverageStore.temps" :key="temp">
@@ -12,6 +42,7 @@
               :id="`r${temp}`"
               :value="temp"
               v-model="beverageStore.currentTemp"
+              :disabled="!beverageStore.user"
             />
             {{ temp }}
           </label>
@@ -19,6 +50,7 @@
       </li>
     </ul>
 
+    <!-- Base -->
     <ul>
       <li>
         <template v-for="b in beverageStore.bases" :key="b.id">
@@ -29,6 +61,7 @@
               :id="`r${b.id}`"
               :value="b"
               v-model="beverageStore.currentBase"
+              :disabled="!beverageStore.user"
             />
             {{ b.name }}
           </label>
@@ -36,6 +69,7 @@
       </li>
     </ul>
 
+    <!-- Syrup -->
     <ul>
       <li>
         <template v-for="s in beverageStore.syrups" :key="s.id">
@@ -46,6 +80,7 @@
               :id="`r${s.id}`"
               :value="s"
               v-model="beverageStore.currentSyrup"
+              :disabled="!beverageStore.user"
             />
             {{ s.name }}
           </label>
@@ -53,6 +88,7 @@
       </li>
     </ul>
 
+    <!-- Creamer -->
     <ul>
       <li>
         <template v-for="c in beverageStore.creamers" :key="c.id">
@@ -63,6 +99,7 @@
               :id="`r${c.id}`"
               :value="c"
               v-model="beverageStore.currentCreamer"
+              :disabled="!beverageStore.user"
             />
             {{ c.name }}
           </label>
@@ -70,33 +107,24 @@
       </li>
     </ul>
 
-    <div class="auth-row">
-      <button @click="withGoogle">Sign in with Google</button>
-    </div>
+    <!-- Name input -->
     <input
       v-model="beverageStore.currentName"
       type="text"
       placeholder="Beverage Name"
+      :disabled="!beverageStore.user"
     />
 
-    <button @click="handleMakeBeverage">🍺 Make Beverage</button>
+    <button 
+      @click="handleMakeBeverage"
+      :disabled="!beverageStore.user"
+    >
+      🍺 Make Beverage
+    </button>
 
     <p v-if="message" class="status-message">
       {{ message }}
     </p>
-  </div>
-
-  <div style="margin-top: 20px">
-    <template v-for="beverage in beverageStore.beverages" :key="beverage.id">
-      <input
-        type="radio"
-        :id="beverage.id"
-        :value="beverage"
-        v-model="beverageStore.currentBeverage"
-        @change="beverageStore.showBeverage()"
-      />
-      <label :for="beverage.id">{{ beverage.name }}</label>
-    </template>
   </div>
 </template>
 
@@ -104,6 +132,8 @@
 import { ref } from "vue";
 import Beverage from "./components/Beverage.vue";
 import { useBeverageStore } from "./stores/beverageStore";
+import { onAuthStateChanged, signInWithPopup, signOut } from "firebase/auth";
+import { auth, provider } from "./firebase";
 
 const beverageStore = useBeverageStore();
 beverageStore.init();
@@ -117,12 +147,29 @@ const showMessage = (txt: string) => {
   }, 5000);
 };
 
-const withGoogle = async () => {};
+async function withGoogle() {
+  try {
+    const result = await signInWithPopup(auth, provider);
+    beverageStore.setUser(result.user);
+  } catch (err: any) {
+    message.value = err.message;
+  }
+}
+
+function logout() {
+  signOut(auth);
+  beverageStore.setUser(null);
+}
 
 const handleMakeBeverage = () => {
   const txt = beverageStore.makeBeverage();
   showMessage(txt);
 };
+
+// Keep store in sync with Firebase Auth
+onAuthStateChanged(auth, user => {
+  beverageStore.setUser(user);
+});
 </script>
 
 <style lang="scss">
